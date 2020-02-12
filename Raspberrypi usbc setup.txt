@@ -1,0 +1,62 @@
+1. 使用 sudo vi /boot/config.txt 打开config文件，将 dtoverlay=dwc2 添加到最后一行
+ 
+2. 使用 sudo vi /boot/cmdline.txt 打开txt文件， 将 modules-load=dwc2 添加到最后一行
+
+3. 使用 sudo vi /etc/modules 打开文件， 将 libcomposite 添加到最后一行
+
+4. 使用 sudo vi /etc/dhcpcd.conf 打开文件， 将 denyinterfaces usb0 添加到最后一行
+
+5. 使用 sudo apt-get install dnsmasq 安装 dnsmasq
+
+6. 使用 sudo vi /etc/dnsmasq.d/usb 创建新的文件usb，并将下方代码拷贝进去
+
+interface=usb0
+dhcp-range=10.55.0.2,10.55.0.6,255.255.255.248,1h
+dhcp-option=3
+leasefile-ro
+
+7. 使用 sudo vi /etc/network/interfaces.d/usb0 创建新的文件usb0，并将下方代码拷贝进去
+
+auto usb0
+allow-hotplug usb0
+iface usb0 inet static
+  address 10.55.0.1
+  netmask 255.255.255.248
+
+8. 使用 sudo vi /root/usb.sh 创建新的文件usb.sh，并将下方代码拷贝进去
+
+#!/bin/bash
+cd /sys/kernel/config/usb_gadget/
+mkdir -p pi4
+cd pi4
+echo 0x1d6b > idVendor # Linux Foundation
+echo 0x0104 > idProduct # Multifunction Composite Gadget
+echo 0x0100 > bcdDevice # v1.0.0
+echo 0x0200 > bcdUSB # USB2
+echo 0xEF > bDeviceClass
+echo 0x02 > bDeviceSubClass
+echo 0x01 > bDeviceProtocol
+mkdir -p strings/0x409
+echo "fedcba9876543211" > strings/0x409/serialnumber
+echo "Ben Hardill" > strings/0x409/manufacturer
+echo "PI4 USB Device" > strings/0x409/product
+mkdir -p configs/c.1/strings/0x409
+echo "Config 1: ECM network" > configs/c.1/strings/0x409/configuration
+echo 250 > configs/c.1/MaxPower
+# Add functions here
+# see gadget configurations below
+# End functions
+mkdir -p functions/ecm.usb0
+HOST="00:dc:c8:f7:75:14" # "HostPC"
+SELF="00:dd:dc:eb:6d:a1" # "BadUSB"
+echo $HOST > functions/ecm.usb0/host_addr
+echo $SELF > functions/ecm.usb0/dev_addr
+ln -s functions/ecm.usb0 configs/c.1/
+udevadm settle -t 5 || :
+ls /sys/class/udc > UDC
+ifup usb0
+service dnsmasq restart
+
+9. sudo chmod +x /root/usb.sh 添加使用权限给 /root/usb.sh 
+
+10. 使用 sudo vi /etc/rc.local 打开文件， 将 /root/usb.sh 添加到exit 0 之前一行
